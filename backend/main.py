@@ -2,6 +2,8 @@ from fastapi import FastAPI, Depends
 
 from db import get_db
 from schemas import ProblemCreate
+from psycopg2.extras import RealDictCursor
+
 
 app = FastAPI()
 
@@ -29,3 +31,22 @@ def create_problem(payload: ProblemCreate, db=Depends(get_db)):
 
     # 5. return something useful to the client (e.g. the new problem's id)
     return { "id": problem_id, **payload.model_dump()}
+
+@app.get("/problems")
+def get_problems(db=Depends(get_db)):
+    cur = db.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT " \
+    "problems.id, " \
+    "problems.title, " \
+    "problems.difficulty, " \
+    "problems.note, " \
+    "array_agg(DISTINCT topics.topic) AS topics, " \
+    "array_agg(DISTINCT patterns.pattern) AS patterns " \
+    "FROM problems " \
+    "JOIN problem_topics ON problems.id = problem_topics.problem_id " \
+    "JOIN topics ON problem_topics.topic_id = topics.id " \
+    "JOIN problem_patterns ON problems.id = problem_patterns.problem_id " \
+    "JOIN patterns ON problem_patterns.pattern_id = patterns.id " \
+    "GROUP BY problems.id, problems.title, problems.difficulty, problems.note ")
+    return cur.fetchall()  # -> [{"id": 1, "title": "Two Sum"}, {"id": 2, "title": "Valid Parentheses"}]
+
