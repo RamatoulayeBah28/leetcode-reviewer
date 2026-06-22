@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 
 from db import get_db
-from schemas import ProblemCreate, ProblemUpdate
+from schemas import ProblemCreate, ProblemUpdate, ReviewCreate
 from psycopg2.extras import RealDictCursor
 
 
@@ -101,8 +101,47 @@ def delete_problem(problem_id: int, db=Depends(get_db)):
     )
     if cur.rowcount == 0:
         raise HTTPException(status_code=404, detail="Problem not found")
-    
+
     db.commit()
+
+@app.post("/problems/{problem_id}/review")
+def review_problem(problem_id: int, payload: ReviewCreate, db=Depends(get_db)):
+    cur = db.cursor(cursor_factory=RealDictCursor)
+
+    cur.execute("SELECT current_interval_days FROM problems WHERE id = %s", (problem_id,))
+    row = cur.fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Problem not found")
+
+
+    current_interval_days = row["current_interval_days"]
+
+    if payload.confidence == 1:
+        new_interval_days = 1
+    elif payload.confidence == 2:
+        new_interval_days = 3
+    elif payload.confidence == 3:
+        new_interval_days = 7
+    elif payload.confidence == 4:
+        new_interval_days = max(10, current_interval_days * 1.3)
+    elif payload.confidence == 5:
+        new_interval_days = max(15, current_interval_days * 2)
+    else:
+        print("Error computing a score")
+        raise HTTPException(status_code=500, detail="Confidence value somehow outside 1-5")
+
+
+    cur.execute("INSERT INTO reviews (problem_id, confidence, solved_status) VALUES (%s, %s, %s) ", (problem_id, payload.confidence, payload.solved_status))
+
+    cur.execute(
+        "UPDATE problems SET current_interval_days = %s, last_practiced = now(), "
+        "next_review_at = now() + (%s * INTERVAL '1 day') WHERE id = %s",
+        (new_interval_days, new_interval_days, problem_id)
+    )
+
+    db.commit()
+
+    return {"problem_id": problem_id, "new_interval_days": new_interval_days}
 
 
 

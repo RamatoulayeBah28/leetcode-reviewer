@@ -1,5 +1,5 @@
 # Pydantic request/response models go here.
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ProblemCreate(BaseModel):
@@ -15,3 +15,10 @@ class ProblemUpdate(BaseModel):
     note: str | None = None
     topic_ids: list[int] | None = None
     pattern_ids: list[int] | None = None
+
+class ReviewCreate(BaseModel):
+    # confidence: required int, 1-5. Field(ge=..., le=...) gives a clean 422
+    # instead of letting an out-of-range value hit the DB's chk_confidence
+    # CHECK constraint and surface as a raw Postgres error.
+    confidence: int = Field(ge=1, le=5)
+    solved_status: str | None = None
