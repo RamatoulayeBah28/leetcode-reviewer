@@ -1,0 +1,5 @@
+CREATE TABLE users (
+    id TEXT PRIMARY KEY
+);
+
+ALTER TABLE problems ADD COLUMN user_id TEXT REFERENCES users; 
