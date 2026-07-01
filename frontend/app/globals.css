@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+:root {
+  --surface: white; /* light blue */
+  --foreground: #313628; /* Charcoal Brown */
+  --primary: #a20021; /* Ruby Red */
+  --primary-foreground: #ffffff;
+  --accent: #fcb97d; /* Light Caramel */
+  --success: #56876d; /* Jungle Teal */
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 20s linear infinite;
+}

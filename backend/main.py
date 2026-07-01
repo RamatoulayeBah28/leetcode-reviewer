@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from auth import get_current_user
 from db import get_db
@@ -8,17 +9,39 @@ from psycopg2.extras import RealDictCursor
 
 app = FastAPI()
 
+# Browsers block cross-origin requests by default (the frontend on :3001
+# calling this API on :8000 counts as cross-origin). This explicitly
+# allow-lists the dev frontend; add the production domain once deployed.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/topics")
+def get_topics(user=Depends(get_current_user), db=Depends(get_db)):
+    cur = db.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT id, topic FROM topics ORDER BY topic")
+    return cur.fetchall()
+
+@app.get("/patterns")
+def get_patterns(user=Depends(get_current_user), db=Depends(get_db)):
+    cur = db.cursor(cursor_factory=RealDictCursor)
+    cur.execute("SELECT id, pattern FROM patterns ORDER BY pattern")
+    return cur.fetchall()
 
 @app.post("/problems", status_code=201)
 def create_problem(payload: ProblemCreate, user=Depends(get_current_user), db=Depends(get_db)):
-    cur = db.cursor()
+    cur = db.cursor(cursor_factory=RealDictCursor)
 
     cur.execute(
         "INSERT INTO problems (title, difficulty, note, user_id) VALUES (%s, %s, %s, %s) RETURNING id",
         (payload.title, payload.difficulty, payload.note, user["id"]),
     )
-    res = cur.fetchone()
-    problem_id = res[0]
+    problem_id = cur.fetchone()["id"]
 
     for topic_id in payload.topic_ids:
         cur.execute("INSERT INTO problem_topics (problem_id, topic_id) VALUES (%s, %s)", (problem_id, topic_id))
@@ -28,7 +51,24 @@ def create_problem(payload: ProblemCreate, user=Depends(get_current_user), db=De
 
     db.commit()
 
-    return {"id": problem_id, **payload.model_dump()}
+    cur.execute(
+        "SELECT "
+        "problems.id, "
+        "problems.title, "
+        "problems.difficulty, "
+        "problems.note, "
+        "array_agg(DISTINCT topics.topic) AS topics, "
+        "array_agg(DISTINCT patterns.pattern) AS patterns "
+        "FROM problems "
+        "JOIN problem_topics ON problems.id = problem_topics.problem_id "
+        "JOIN topics ON problem_topics.topic_id = topics.id "
+        "JOIN problem_patterns ON problems.id = problem_patterns.problem_id "
+        "JOIN patterns ON problem_patterns.pattern_id = patterns.id "
+        "WHERE problems.id = %s "
+        "GROUP BY problems.id, problems.title, problems.difficulty, problems.note ", (problem_id,)
+    )
+    return cur.fetchone()
+
 
 @app.get("/problems")
 def get_problems(user=Depends(get_current_user), db=Depends(get_db)):
