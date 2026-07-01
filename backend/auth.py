@@ -41,12 +41,7 @@ def get_current_user(
     clerk_user_id = state.payload["sub"]
 
     cur = db.cursor(cursor_factory=RealDictCursor)
+    cur.execute("INSERT INTO users (id) VALUES (%s) ON CONFLICT (id) DO NOTHING", (clerk_user_id,))
+    db.commit()
     cur.execute("SELECT id FROM users WHERE id = %s", (clerk_user_id,))
-    user = cur.fetchone()
-
-    if user is None:
-        cur.execute("INSERT INTO users (id) VALUES (%s) RETURNING id", (clerk_user_id,))
-        user = cur.fetchone()
-        db.commit()
-
-    return user
+    return cur.fetchone()
