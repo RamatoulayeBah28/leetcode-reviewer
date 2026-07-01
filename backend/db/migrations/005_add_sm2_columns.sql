@@ -1,0 +1,2 @@
+ALTER TABLE problems ADD COLUMN easiness_factor FLOAT NOT NULL DEFAULT 2.5;
+ALTER TABLE problems ADD COLUMN repetitions INT NOT NULL DEFAULT 0;

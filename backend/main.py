@@ -38,8 +38,8 @@ def create_problem(payload: ProblemCreate, user=Depends(get_current_user), db=De
     cur = db.cursor(cursor_factory=RealDictCursor)
 
     cur.execute(
-        "INSERT INTO problems (title, difficulty, note, user_id) VALUES (%s, %s, %s, %s) RETURNING id",
-        (payload.title, payload.difficulty, payload.note, user["id"]),
+        "INSERT INTO problems (title, difficulty, note, url, user_id) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+        (payload.title, payload.difficulty, payload.note, payload.url, user["id"]),
     )
     problem_id = cur.fetchone()["id"]
 
@@ -57,6 +57,7 @@ def create_problem(payload: ProblemCreate, user=Depends(get_current_user), db=De
         "problems.title, "
         "problems.difficulty, "
         "problems.note, "
+        "problems.url, "
         "array_agg(DISTINCT topics.topic) AS topics, "
         "array_agg(DISTINCT patterns.pattern) AS patterns "
         "FROM problems "
@@ -65,7 +66,7 @@ def create_problem(payload: ProblemCreate, user=Depends(get_current_user), db=De
         "JOIN problem_patterns ON problems.id = problem_patterns.problem_id "
         "JOIN patterns ON problem_patterns.pattern_id = patterns.id "
         "WHERE problems.id = %s "
-        "GROUP BY problems.id, problems.title, problems.difficulty, problems.note ", (problem_id,)
+        "GROUP BY problems.id, problems.title, problems.difficulty, problems.note, problems.url ", (problem_id,)
     )
     return cur.fetchone()
 
@@ -78,6 +79,7 @@ def get_problems(user=Depends(get_current_user), db=Depends(get_db)):
     "problems.title, " \
     "problems.difficulty, " \
     "problems.note, " \
+    "problems.url, " \
     "array_agg(DISTINCT topics.topic) AS topics, " \
     "array_agg(DISTINCT patterns.pattern) AS patterns " \
     "FROM problems " \
@@ -86,7 +88,7 @@ def get_problems(user=Depends(get_current_user), db=Depends(get_db)):
     "JOIN problem_patterns ON problems.id = problem_patterns.problem_id " \
     "JOIN patterns ON problem_patterns.pattern_id = patterns.id " \
     "WHERE problems.user_id = %s " \
-    "GROUP BY problems.id, problems.title, problems.difficulty, problems.note ", (user["id"],))
+    "GROUP BY problems.id, problems.title, problems.difficulty, problems.note, problems.url ", (user["id"],))
     return cur.fetchall()  # -> [{"id": 1, "title": "Two Sum"}, {"id": 2, "title": "Valid Parentheses"}]
 
 @app.get("/problems/today")
@@ -97,6 +99,7 @@ def get_problem(user=Depends(get_current_user), db=Depends(get_db)):
     "problems.title, " \
     "problems.difficulty, " \
     "problems.note, " \
+    "problems.url, " \
     "array_agg(DISTINCT topics.topic) AS topics, " \
     "array_agg(DISTINCT patterns.pattern) AS patterns " \
     "FROM problems " \
@@ -115,8 +118,9 @@ def update_problem(problem_id: int, payload: ProblemUpdate, user=Depends(get_cur
     cur.execute("UPDATE problems " \
     "SET title = COALESCE(%s, title), " \
         "difficulty = COALESCE(%s, difficulty), " \
-        "note = COALESCE(%s, note) " \
-    "WHERE id = %s AND user_id = %s ", (payload.title, payload.difficulty, payload.note, problem_id, user["id"]))
+        "note = COALESCE(%s, note), " \
+        "url = COALESCE(%s, url) " \
+    "WHERE id = %s AND user_id = %s ", (payload.title, payload.difficulty, payload.note, payload.url, problem_id, user["id"]))
 
     if cur.rowcount == 0:
         raise HTTPException(status_code=404, detail="Problem not found")
@@ -146,7 +150,7 @@ def update_problem(problem_id: int, payload: ProblemUpdate, user=Depends(get_cur
         "JOIN problem_patterns ON problems.id = problem_patterns.problem_id " \
         "JOIN patterns ON problem_patterns.pattern_id = patterns.id " \
         "WHERE problems.id = %s " \
-        "GROUP BY problems.id, problems.title, problems.difficulty, problems.note ", (problem_id,)
+        "GROUP BY problems.id, problems.title, problems.difficulty, problems.note, problems.url ", (problem_id,)
     )
     return cur.fetchone()
 
@@ -166,36 +170,44 @@ def delete_problem(problem_id: int, user=Depends(get_current_user), db=Depends(g
 def review_problem(problem_id: int, payload: ReviewCreate, user=Depends(get_current_user), db=Depends(get_db)):
     cur = db.cursor(cursor_factory=RealDictCursor)
 
-    cur.execute("SELECT current_interval_days FROM problems WHERE id = %s AND user_id = %s", (problem_id, user["id"]))
+    cur.execute(
+        "SELECT current_interval_days, easiness_factor, repetitions FROM problems WHERE id = %s AND user_id = %s",
+        (problem_id, user["id"])
+    )
     row = cur.fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="Problem not found")
 
-    current_interval_days = row["current_interval_days"]
+    # Map confidence 1-5 to SM-2 quality 0-5 (skipping q=1, which has no natural
+    # equivalent in the 5-label set: Forgot→0, Weak→2, Okay→3, Good→4, Mastered→5)
+    quality = {1: 0, 2: 2, 3: 3, 4: 4, 5: 5}[payload.confidence]
 
-    if payload.confidence == 1:
-        new_interval_days = 1
-    elif payload.confidence == 2:
-        new_interval_days = 3
-    elif payload.confidence == 3:
-        new_interval_days = 7
-    elif payload.confidence == 4:
-        new_interval_days = max(10, current_interval_days * 1.3)
-    elif payload.confidence == 5:
-        new_interval_days = max(15, current_interval_days * 2)
+    ef = row["easiness_factor"]
+    reps = row["repetitions"]
+    interval = row["current_interval_days"]
+
+    if quality < 3:
+        new_reps = 0
+        new_interval = 1
     else:
-        print("Error computing a score")
-        raise HTTPException(status_code=500, detail="Confidence value somehow outside 1-5")
+        new_reps = reps + 1
+        if reps == 0:
+            new_interval = 1
+        elif reps == 1:
+            new_interval = 6
+        else:
+            new_interval = round(interval * ef)
 
+    new_ef = max(1.3, ef + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
 
-    cur.execute("INSERT INTO reviews (problem_id, confidence, solved_status) VALUES (%s, %s, %s) ", (problem_id, payload.confidence, payload.solved_status))
+    cur.execute("INSERT INTO reviews (problem_id, confidence, solved_status) VALUES (%s, %s, %s)", (problem_id, payload.confidence, payload.solved_status))
 
     cur.execute(
-        "UPDATE problems SET current_interval_days = %s, last_practiced = now(), "
-        "next_review_at = now() + (%s * INTERVAL '1 day') WHERE id = %s",
-        (new_interval_days, new_interval_days, problem_id)
+        "UPDATE problems SET current_interval_days = %s, easiness_factor = %s, repetitions = %s, "
+        "last_practiced = now(), next_review_at = now() + (%s * INTERVAL '1 day') WHERE id = %s",
+        (new_interval, new_ef, new_reps, new_interval, problem_id)
     )
 
     db.commit()
 
-    return {"problem_id": problem_id, "new_interval_days": new_interval_days}
+    return {"problem_id": problem_id, "new_interval_days": new_interval, "new_ef": new_ef}

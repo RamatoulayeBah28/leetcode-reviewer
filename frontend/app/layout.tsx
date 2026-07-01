@@ -20,9 +20,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Placeholder app name -- single find-and-replace once a real name is picked.
 export const metadata: Metadata = {
-  title: "{{APP_NAME}}",
+  title: "Lock The Code",
   description: "The only free technical interview study plan you need.",
 };
 
