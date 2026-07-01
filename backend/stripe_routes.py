@@ -62,7 +62,8 @@ def create_checkout_session(
 
     if customer_id:
         session_params["customer"] = customer_id
-    else:
+    elif is_lifetime:
+        # customer_creation is only valid in payment mode
         session_params["customer_creation"] = "always"
 
     session = stripe.checkout.Session.create(**session_params)
