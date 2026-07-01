@@ -1,6 +1,6 @@
 # Lock The Code
 
-The only free technical interview study plan you need. Lock The Code uses SM-2 spaced repetition to surface the right LeetCode problem at the right time — so you actually remember patterns, not just grind and forget.
+The only free technical interview study plan you need. Lock The Code uses SM-2 spaced repetition to surface the right LeetCode problem at the right time so you actually remember patterns, not just grind and forget.
 
 ## Stack
 
@@ -67,4 +67,4 @@ npm run dev
 - [ ] Stripe billing (Pro tier)
 - [ ] AI chatbot — Tutor mode + Technical Interviewer mode (Pro)
 - [ ] Flashcards
-- [ ] Deploy
+- [x] Deploy
