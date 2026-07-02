@@ -93,8 +93,9 @@ async def stripe_webhook(request: Request, db=Depends(get_db)):
 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
-        clerk_user_id = session.get("metadata", {}).get("clerk_user_id")
-        customer_id = session.get("customer")
+        metadata = session.metadata or {}
+        clerk_user_id = metadata.get("clerk_user_id")
+        customer_id = session.customer
         if clerk_user_id:
             cur.execute(
                 "UPDATE users SET is_pro = true, stripe_customer_id = %s, subscription_status = 'active' "
@@ -105,8 +106,8 @@ async def stripe_webhook(request: Request, db=Depends(get_db)):
 
     elif event["type"] in ("customer.subscription.updated",):
         sub = event["data"]["object"]
-        customer_id = sub.get("customer")
-        status = sub.get("status")  # trialing, active, past_due, canceled, etc.
+        customer_id = sub.customer
+        status = sub.status
         is_pro = status in ("trialing", "active")
         cur.execute(
             "UPDATE users SET is_pro = %s, subscription_status = %s "
@@ -117,7 +118,7 @@ async def stripe_webhook(request: Request, db=Depends(get_db)):
 
     elif event["type"] in ("customer.subscription.deleted", "invoice.payment_failed"):
         obj = event["data"]["object"]
-        customer_id = obj.get("customer")
+        customer_id = obj.customer
         cur.execute(
             "UPDATE users SET is_pro = false, subscription_status = 'canceled' "
             "WHERE stripe_customer_id = %s",
