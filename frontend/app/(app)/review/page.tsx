@@ -24,7 +24,6 @@ const CONFIDENCE_LABELS: { label: string; value: number }[] = [
 
 export default function ReviewPage() {
   const { getToken, isSignedIn, isLoaded } = useAuth();
-  // undefined = still loading, null = loaded but nothing due, Problem = due problem
   const [problem, setProblem] = useState<Problem | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -37,69 +36,49 @@ export default function ReviewPage() {
 
   async function fetchTodaysProblem() {
     const token = await getToken();
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/problems/today`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
-    if (!res.ok) {
-      setError(`Request failed: ${res.status}`);
-      return;
-    }
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/problems/today`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) { setError(`Request failed: ${res.status}`); return; }
     setProblem(await res.json());
+    setExpanded(false);
   }
 
   async function submitReview(confidence: number) {
     if (!problem) return;
     const token = await getToken();
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/problems/${problem.id}/review`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          confidence,
-        }),
-      },
-    );
-    if (!res.ok) {
-      setError(`Request failed: ${res.status}`);
-      return;
-    }
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/problems/${problem.id}/review`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ confidence }),
+    });
+    if (!res.ok) { setError(`Request failed: ${res.status}`); return; }
     fetchTodaysProblem();
   }
 
   if (!isLoaded) return <p className="p-8">Loading...</p>;
   if (!isSignedIn) return <p className="p-8">Sign in to start reviewing.</p>;
   if (error) return <p className="p-8 text-red-600">{error}</p>;
-
-  if (problem === undefined)
-    return <p className="p-8">Loading your review queue...</p>;
+  if (problem === undefined) return <p className="p-8">Loading your review queue...</p>;
 
   if (problem === null) {
     return (
-      <main className="p-8 max-w-2xl mx-auto w-full flex flex-col items-center gap-6 py-24 text-center">
+      <div className="p-8 max-w-2xl mx-auto w-full flex flex-col items-center gap-6 py-24 text-center">
         <CalendarDays className="w-12 h-12 text-foreground/30" />
         <h1 className="text-2xl font-semibold">No Problems for Today</h1>
-        <p className="text-foreground/60">
-          You&apos;re all caught up! Ready to practice something new?
-        </p>
+        <p className="text-foreground/60">You&apos;re all caught up! Ready to practice something new?</p>
         <a
           href="/dashboard"
           className="rounded-full bg-primary text-primary-foreground font-medium text-base h-12 px-8 flex items-center transition-opacity hover:opacity-90"
         >
           Practice a New One
         </a>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="p-8 max-w-2xl mx-auto w-full">
+    <div className="p-8 max-w-2xl mx-auto w-full">
       <button
         onClick={() => setExpanded((e) => !e)}
         className="w-full text-left rounded-xl border border-foreground/10 p-6 cursor-pointer hover:border-foreground/20 transition-colors"
@@ -111,18 +90,11 @@ export default function ReviewPage() {
           <span className="text-sm font-medium text-foreground/50">Today</span>
         </div>
         <h1 className="text-xl font-semibold text-center">{problem.title}</h1>
-
         {expanded && (
           <div className="mt-4 flex flex-col gap-3 border-t border-foreground/10 pt-4">
-            <p className="text-xs font-medium uppercase tracking-wide text-foreground/40">
-              {problem.difficulty}
-            </p>
-            <p className="text-sm text-foreground/60">
-              {problem.topics.join(", ")} · {problem.patterns.join(", ")}
-            </p>
-            {problem.note && (
-              <p className="text-sm italic text-foreground/50">{problem.note}</p>
-            )}
+            <p className="text-xs font-medium uppercase tracking-wide text-foreground/40">{problem.difficulty}</p>
+            <p className="text-sm text-foreground/60">{problem.topics.join(", ")} · {problem.patterns.join(", ")}</p>
+            {problem.note && <p className="text-sm italic text-foreground/50">{problem.note}</p>}
             {problem.url && (
               <a href={problem.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">
                 View problem ↗
@@ -146,6 +118,6 @@ export default function ReviewPage() {
           ))}
         </div>
       </div>
-    </main>
+    </div>
   );
 }

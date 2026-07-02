@@ -1,8 +1,19 @@
-import { SignUpButton } from "@clerk/nextjs";
+"use client";
+
+import { useAuth, SignUpButton } from "@clerk/nextjs";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 const INTEGRATION_LOGOS = ["NeetCode", "LeetCode", "HackerRank", "CodeSignal"];
 
 export default function Home() {
+  const { isSignedIn, isLoaded } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) router.replace("/review");
+  }, [isLoaded, isSignedIn, router]);
+
   return (
     <div className="flex flex-col flex-1 items-center font-sans">
       <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-center gap-10 py-24 px-6 text-center">
@@ -14,7 +25,7 @@ export default function Home() {
           walk into your next interview ready.
         </p>
         <div className="flex items-center gap-3">
-          <SignUpButton forceRedirectUrl="/dashboard">
+          <SignUpButton forceRedirectUrl="/review">
             <button className="rounded-full bg-primary text-primary-foreground font-medium text-base h-12 px-8 cursor-pointer transition-opacity hover:opacity-90">
               Start Free
             </button>

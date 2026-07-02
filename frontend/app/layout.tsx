@@ -37,37 +37,23 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-surface text-foreground">
         <ClerkProvider>
-          <header className="flex justify-end items-center p-4 gap-4 h-16">
-            <Show when="signed-out">
-              <SignInButton forceRedirectUrl="/dashboard" />
-              <SignUpButton forceRedirectUrl="/dashboard">
-                <button className="bg-primary text-white rounded-full font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 cursor-pointer">
-                  Sign Up
-                </button>
-              </SignUpButton>
-            </Show>
-
-            <Show when="signed-in">
-              <Link
-                href="/pricing"
-                className="border rounded-full bg-accent text-foreground font-semibold text-sm h-9 px-4 flex items-center gap-1.5 transition-opacity hover:opacity-80"
-              >
-                <span className="text-xs"></span> Pro
-              </Link>
-              <Link
-                href="/review"
-                className="text-sm font-medium hover:underline"
-              >
-                Review
-              </Link>
-              <Link
-                href="/dashboard"
-                className="text-sm font-medium hover:underline"
-              >
-                Dashboard
-              </Link>
-              <UserButton />
-            </Show>
+          <header className="flex justify-between items-center px-6 h-16 border-b border-foreground/10 shrink-0">
+            <Link href="/" className="font-semibold text-lg tracking-tight">
+              Lock The Code
+            </Link>
+            <div className="flex items-center gap-4">
+              <Show when="signed-out">
+                <SignInButton forceRedirectUrl="/review" />
+                <SignUpButton forceRedirectUrl="/review">
+                  <button className="bg-primary text-white rounded-full font-medium text-sm h-10 px-5 cursor-pointer">
+                    Sign Up
+                  </button>
+                </SignUpButton>
+              </Show>
+              <Show when="signed-in">
+                <UserButton />
+              </Show>
+            </div>
           </header>
           {children}
         </ClerkProvider>
